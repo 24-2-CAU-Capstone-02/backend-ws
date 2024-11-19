@@ -11,13 +11,6 @@ redis_client = redis.StrictRedis(
 connected_clients = {}
 
 
-async def verify_user(room_id: str, session_token: str) -> int:
-    if room_id == None or session_token == None:
-        return None
-    # 예시: 실제 HTTP 호출로 room 및 token 검증
-    return 1  # 실제로는 백엔드 API를 호출해 응답 처리
-
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -45,25 +38,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     menu_id = message.get("menuId")
                     quantity = message.get("quantity")
 
-                    room_data = redis_client.get(room_id)
-                    if not room_data:
-                        room_data = {}
-                    else:
-                        room_data = json.loads(room_data)
+                    if menu_id == None or quantity == None:
+                        continue
 
-                    if menu_id not in room_data:
-                        room_data[menu_id] = []
-                    if member_id not in room_data[menu_id]:
-                        room_data[menu_id].append(member_id)
-
-                    redis_client.set(room_id, json.dumps(room_data))
-
-                    response = {"type": "choice", "roomId": room_data}
+                    redis_client.hset(room_id, f"{menu_id}:{member_id}", quantity)
+                    room_data = redis_client.hgetall(room_id)
+                    response = {"type": "choice", "data": transform_dict(room_data)}
 
                     for client in connected_clients.get(room_id, []):
                         await client.send_json(response)
 
-                elif message["type"] == "refresh":
+                elif message.get("type") == "refresh":
                     response = {"type": "refresh"}
                     for client in connected_clients.get(room_id, []):
                         await client.send_json(response)
@@ -73,3 +58,24 @@ async def websocket_endpoint(websocket: WebSocket):
         for clients in connected_clients.values():
             if websocket in clients:
                 clients.remove(websocket)
+
+
+async def verify_user(room_id: str, session_token: str) -> int:
+    if room_id == None or session_token == None:
+        return None
+    # 예시: 실제 HTTP 호출로 room 및 token 검증
+    return 1  # 실제로는 백엔드 API를 호출해 응답 처리
+
+
+def transform_dict(input_dict: dict):
+    transformed_dict = {}
+    
+    for composite_key, quantity in input_dict.items():
+        menu_id, member_id = composite_key.split(':')
+        
+        if menu_id not in transformed_dict:
+            transformed_dict[menu_id] = {}
+
+        transformed_dict[menu_id][member_id] = quantity
+    
+    return transformed_dict
