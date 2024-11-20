@@ -6,7 +6,24 @@ import json
 import redis
 import asyncio
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global pubsub_task
+    print("create_task completed")
+    pubsub_task = asyncio.create_task(pubsub_loop())
+
+    yield
+
+    if pubsub_task:
+        print("task canceled")
+        pubsub_task.cancel()
+        try:
+            await pubsub_task
+        except asyncio.CancelledError:
+            pass
+    pubsub.close()
+
+app = FastAPI(lifespan=lifespan)
 redis_client = redis.Redis(
     host="localhost", port=6379, db=0, decode_responses=True
 )
@@ -18,37 +35,28 @@ connected_clients = {}
 async def pubsub_loop():
     # get_message로 polling
     while True:
-        message = pubsub.get_message()
-        if message != None:
-            room_id = message.get("channel")
-            message_data = json.loads(message["data"])
-
-            if message_data.get("type") == "choice":
-                for client in connected_clients.get(room_id, []):
-                    data = json.loads(message_data.get("data"))
-                    await client.send_json(data)
-            if message_data.get("type") == "refresh":
-                for client in connected_clients.get(room_id, []):
-                    await client.send_json({"type": "refresh"})
-        else:
-            await asyncio.sleep(0.1)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global pubsub_task
-
-    pubsub_task = asyncio.create_task(pubsub_loop())
-
-    yield
-
-    if pubsub_task:
-        pubsub_task.cancel()
         try:
-            await pubsub_task
-        except asyncio.CancelledError:
-            pass
-    pubsub.close()
+            message = pubsub.get_message()
+            if message != None:
+                print("message : ", message)
+                message_type = message.get("type")
+
+                if message_type != "message":
+                    continue
+                
+                room_id = message.get("channel")
+                message_data = json.loads(message["data"])
+
+                if message_data.get("type") == "choice":
+                    for client in connected_clients.get(room_id, []):
+                        await client.send_json(message_data.get("data"))
+                if message_data.get("type") == "refresh":
+                    for client in connected_clients.get(room_id, []):
+                        await client.send_json({"type": "refresh"})
+            else:
+                await asyncio.sleep(0.1)
+        except Exception as e:
+            print(f"pubsub_loop 도중 에러 발생: {e}")
 
 
 @app.websocket("/ws")
@@ -58,7 +66,6 @@ async def websocket_endpoint(websocket: WebSocket):
         data = await websocket.receive_json()
         if data.get("type") == "connect":
             room_id = data.get("roomId")
-
             session_token = data.get("sessionToken")
             member_id = await verify_user(room_id, session_token)
 
@@ -66,10 +73,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 if room_id not in connected_clients:
                     connected_clients[room_id] = []
                     pubsub.subscribe(room_id)
-                
                 connected_clients[room_id].append(websocket)
-                await websocket.send_json({"type": "connect", "status": "success"})
-
+                room_data = redis_client.hgetall(room_id)
+                response = {"type": "connect", "status": "success", "data": transform_dict(room_data)}
+                await websocket.send_json(response)
             else:
                 await websocket.send_json({"type": "connect", "status": "fail"})
                 await websocket.close()

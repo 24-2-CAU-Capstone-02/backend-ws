@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>WebSocket Test</title>
+	</head>
+	<body>
+		<h2>WebSocket Test Page</h2>
+		<div>
+			<label for="wsUrl">WebSocket URL:</label>
+			<input
+				type="text"
+				id="wsUrl"
+				value="ws://localhost:8000/ws"
+				placeholder="Enter WebSocket URL"
+			/>
+		</div>
+		<div>
+			<label for="roomId">Room ID:</label>
+			<input type="text" id="roomId" placeholder="Enter Room ID" />
+		</div>
+		<div>
+			<label for="sessionToken">Session Token:</label>
+			<input type="text" id="sessionToken" placeholder="Enter Session Token" />
+		</div>
+		<button id="connectBtn">Connect</button>
+		<button id="disconnectBtn" disabled>Disconnect</button>
+
+		<div id="status"></div>
+
+		<h3>Send a Message</h3>
+		<div>
+			<label for="messageType">Message Type:</label>
+			<select id="messageType">
+				<option value="choice">Choice</option>
+				<option value="refresh">Refresh</option>
+			</select>
+		</div>
+		<div>
+			<label for="menuId">Menu ID (for 'choice'):</label>
+			<input type="text" id="menuId" placeholder="Enter Menu ID" />
+		</div>
+		<div>
+			<label for="quantity">Quantity (for 'choice'):</label>
+			<input type="number" id="quantity" placeholder="Enter Quantity" />
+		</div>
+		<button id="sendMessageBtn" disabled>Send Message</button>
+
+		<h3>Messages</h3>
+		<textarea id="messages" rows="10" cols="50" readonly></textarea>
+
+		<script>
+			let websocket;
+
+			document.getElementById("connectBtn").addEventListener("click", () => {
+				const wsUrl = document.getElementById("wsUrl").value;
+				const roomId = document.getElementById("roomId").value;
+				const sessionToken = document.getElementById("sessionToken").value;
+
+				if (!wsUrl || !roomId || !sessionToken) {
+					alert("Please enter WebSocket URL, Room ID, and Session Token.");
+					return;
+				}
+
+				websocket = new WebSocket(wsUrl);
+
+				websocket.onopen = () => {
+					document.getElementById("status").textContent = "Connected";
+					document.getElementById("connectBtn").disabled = true;
+					document.getElementById("disconnectBtn").disabled = false;
+					document.getElementById("sendMessageBtn").disabled = false;
+
+					const connectMessage = {
+						type: "connect",
+						roomId: roomId,
+						sessionToken: sessionToken,
+					};
+					websocket.send(JSON.stringify(connectMessage));
+				};
+
+				websocket.onmessage = (event) => {
+					const messagesArea = document.getElementById("messages");
+					try {
+						const parsedData = JSON.parse(event.data);
+						const formattedData = JSON.stringify(parsedData, null, 2); // 2는 들여쓰기 스페이스 수
+						messagesArea.value += `Received:\n${formattedData}\n\n`;
+					} catch (e) {
+						// JSON 파싱에 실패한 경우 원본 출력
+						messagesArea.value += `Received: ${event.data}\n`;
+					}
+					messagesArea.scrollTop = messagesArea.scrollHeight;
+				};
+
+				websocket.onclose = () => {
+					document.getElementById("status").textContent = "Disconnected";
+					document.getElementById("connectBtn").disabled = false;
+					document.getElementById("disconnectBtn").disabled = true;
+					document.getElementById("sendMessageBtn").disabled = true;
+				};
+
+				websocket.onerror = (error) => {
+					console.error("WebSocket error:", error);
+					document.getElementById("status").textContent = "Error";
+				};
+			});
+
+			document.getElementById("disconnectBtn").addEventListener("click", () => {
+				if (websocket) {
+					websocket.close();
+				}
+			});
+
+			document
+				.getElementById("sendMessageBtn")
+				.addEventListener("click", () => {
+					const messageType = document.getElementById("messageType").value;
+					const menuId = document.getElementById("menuId").value;
+					const quantity = document.getElementById("quantity").value;
+
+					let message;
+					if (messageType === "choice") {
+						if (!menuId || !quantity) {
+							alert("Please enter Menu ID and Quantity for 'choice' messages.");
+							return;
+						}
+						message = {
+							type: "choice",
+							menuId: menuId,
+							quantity: parseInt(quantity, 10),
+						};
+					} else if (messageType === "refresh") {
+						message = { type: "refresh" };
+					}
+
+					websocket.send(JSON.stringify(message));
+				});
+		</script>
+	</body>
+</html>
