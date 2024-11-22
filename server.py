@@ -1,10 +1,12 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from contextlib import asynccontextmanager
-from typing import Dict, List
-from dataclasses import dataclass
 import json
 import redis
 import asyncio
+import os
+
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 redis_client = redis.Redis(
-    host="localhost", port=6379, db=0, decode_responses=True
+    host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True
 )
 pubsub = redis_client.pubsub()
 pubsub_task = None
@@ -38,7 +40,6 @@ async def pubsub_loop():
         try:
             message = pubsub.get_message()
             if message != None:
-                print("message : ", message)
                 message_type = message.get("type")
 
                 if message_type != "message":
@@ -87,12 +88,24 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if message.get("type") == "choice":
                     menu_id = message.get("menuId")
+                    is_group = message.get("isGroup")
                     quantity = message.get("quantity")
 
-                    if menu_id == None or quantity == None:
+                    if menu_id == None or quantity == None or is_group == None:
+                        response = {"type": "error", "message": "not enough field"}
+                        websocket.send_json(response)
                         continue
+                    
+                    if quantity < 0 or not isinstance(is_group, bool):
+                        response = {"type": "error", "message": "wrong type field"}
+                        websocket.send_json(response)
+                        continue
+                    
+                    if is_group:
+                        redis_client.hset(room_id, f"{menu_id}:group", quantity)
+                    else:
+                        redis_client.hset(room_id, f"{menu_id}:{member_id}", quantity)
 
-                    redis_client.hset(room_id, f"{menu_id}:{member_id}", quantity)
                     room_data = redis_client.hgetall(room_id)
                     response = {"type": "choice", "data": transform_dict(room_data)}
 

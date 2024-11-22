@@ -45,6 +45,10 @@
 			<label for="quantity">Quantity (for 'choice'):</label>
 			<input type="number" id="quantity" placeholder="Enter Quantity" />
 		</div>
+		<div>
+			<label for="isGroup">Is Group:</label>
+			<input type="checkbox" id="isGroup" />
+		</div>
 		<button id="sendMessageBtn" disabled>Send Message</button>
 
 		<h3>Messages</h3>
@@ -117,6 +121,7 @@
 					const messageType = document.getElementById("messageType").value;
 					const menuId = document.getElementById("menuId").value;
 					const quantity = document.getElementById("quantity").value;
+					const isGroup = document.getElementById("isGroup").checked;
 
 					let message;
 					if (messageType === "choice") {
@@ -127,10 +132,11 @@
 						message = {
 							type: "choice",
 							menuId: menuId,
-							quantity: parseInt(quantity, 10),
+							quantity: quantity,
+							isGroup: isGroup,
 						};
 					} else if (messageType === "refresh") {
-						message = { type: "refresh" };
+						message = { type: "refresh"};
 					}
 
 					websocket.send(JSON.stringify(message));
