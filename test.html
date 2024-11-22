@@ -12,7 +12,7 @@
 			<input
 				type="text"
 				id="wsUrl"
-				value="ws://localhost:8000/ws"
+				value="ws://server.templ.es:9000/ws"
 				placeholder="Enter WebSocket URL"
 			/>
 		</div>
@@ -132,11 +132,11 @@
 						message = {
 							type: "choice",
 							menuId: menuId,
-							quantity: quantity,
+							quantity: parseInt(quantity, 10),
 							isGroup: isGroup,
 						};
 					} else if (messageType === "refresh") {
-						message = { type: "refresh"};
+						message = { type: "refresh" };
 					}
 
 					websocket.send(JSON.stringify(message));

@@ -93,12 +93,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
                     if menu_id == None or quantity == None or is_group == None:
                         response = {"type": "error", "message": "not enough field"}
-                        websocket.send_json(response)
+                        await websocket.send_json(response)
                         continue
                     
                     if quantity < 0 or not isinstance(is_group, bool):
                         response = {"type": "error", "message": "wrong type field"}
-                        websocket.send_json(response)
+                        await websocket.send_json(response)
                         continue
                     
                     if is_group:
@@ -134,6 +134,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     del connected_clients[room_id]
                     pubsub.unsubscribe(room_id)
                 break
+        response = {"type": "error", "message": f"Unhandled Exception : {e}"}
+        await websocket.send_json(response)
+        await websocket.close()
 
 
 async def verify_user(room_id: str, session_token: str) -> int:
