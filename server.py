@@ -50,7 +50,7 @@ async def pubsub_loop():
 
                 if message_data.get("type") == "choice":
                     for client in connected_clients.get(room_id, []):
-                        await client.send_json(message_data.get("data"))
+                        await client.send_json(message_data)
                 if message_data.get("type") == "refresh":
                     for client in connected_clients.get(room_id, []):
                         await client.send_json({"type": "refresh"})
