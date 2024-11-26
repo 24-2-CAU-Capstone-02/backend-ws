@@ -60,7 +60,7 @@ async def pubsub_loop():
             print(f"pubsub_loop 도중 에러 발생: {e}")
 
 
-@app.websocket("/ws")
+@app.websocket("/")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
