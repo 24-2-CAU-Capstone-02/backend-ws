@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import json
 import redis
@@ -11,8 +12,9 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pubsub_task
-    print("create_task completed")
-    pubsub_task = asyncio.create_task(pubsub_loop())
+    if not pubsub_task:
+        print("create_task completed")
+        pubsub_task = asyncio.create_task(pubsub_loop())
 
     yield
 
@@ -33,6 +35,9 @@ pubsub = redis_client.pubsub()
 pubsub_task = None
 connected_clients = {}
 
+@app.get("/ws/health", response_class=JSONResponse)
+async def health_check():
+    return {"status": "ok"}
 
 async def pubsub_loop():
     # get_message로 polling
@@ -60,7 +65,7 @@ async def pubsub_loop():
             print(f"pubsub_loop 도중 에러 발생: {e}")
 
 
-@app.websocket("/")
+@app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
