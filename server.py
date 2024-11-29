@@ -72,9 +72,9 @@ async def websocket_endpoint(websocket: WebSocket):
         data = await websocket.receive_json()
         if data.get("type") == "connect":
             room_id = data.get("roomId")
-            member_id = data.get("memberId")
+            session_token = data.get("sessionToken")
 
-            if room_id == None or member_id == None:
+            if room_id == None or session_token == None:
                 await websocket.send_json({"type": "connect", "status": "fail"})
                 await websocket.close()
                 return
@@ -108,7 +108,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     if is_group:
                         redis_client.hset(room_id, f"{menu_id}:group", quantity)
                     else:
-                        redis_client.hset(room_id, f"{menu_id}:{member_id}", quantity)
+                        redis_client.hset(room_id, f"{menu_id}:{session_token}", quantity)
 
                     room_data = redis_client.hgetall(room_id)
                     response = {"type": "choice", "data": transform_dict(room_data)}
