@@ -72,21 +72,20 @@ async def websocket_endpoint(websocket: WebSocket):
         data = await websocket.receive_json()
         if data.get("type") == "connect":
             room_id = data.get("roomId")
-            session_token = data.get("sessionToken")
-            member_id = await verify_user(room_id, session_token)
+            member_id = data.get("memberId")
 
-            if member_id != None:
-                if room_id not in connected_clients:
-                    connected_clients[room_id] = []
-                    pubsub.subscribe(room_id)
-                connected_clients[room_id].append(websocket)
-                room_data = redis_client.hgetall(room_id)
-                response = {"type": "connect", "status": "success", "data": transform_dict(room_data)}
-                await websocket.send_json(response)
-            else:
+            if room_id == None or member_id == None:
                 await websocket.send_json({"type": "connect", "status": "fail"})
                 await websocket.close()
                 return
+
+            if room_id not in connected_clients:
+                connected_clients[room_id] = []
+                pubsub.subscribe(room_id)
+            connected_clients[room_id].append(websocket)
+            room_data = redis_client.hgetall(room_id)
+            response = {"type": "connect", "status": "success", "data": transform_dict(room_data)}
+            await websocket.send_json(response)
 
             while True:
                 message = await websocket.receive_json()
@@ -142,13 +141,6 @@ async def websocket_endpoint(websocket: WebSocket):
         response = {"type": "error", "message": f"Unhandled Exception : {e}"}
         await websocket.send_json(response)
         await websocket.close()
-
-
-async def verify_user(room_id: str, session_token: str) -> int:
-    if room_id == None or session_token == None:
-        return None
-    
-    return session_token  # 임시로 session_token을 member_id로 간주
 
 
 def transform_dict(input_dict: dict):
