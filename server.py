@@ -8,6 +8,7 @@ import os
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+HOSTNAME = os.getenv('HOSTNAME', 'Unknown')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -84,7 +85,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 pubsub.subscribe(room_id)
             connected_clients[room_id].append(websocket)
             room_data = redis_client.hgetall(room_id)
-            response = {"type": "connect", "status": "success", "data": transform_dict(room_data)}
+            response = {"type": "connect", "status": "success", "data": transform_dict(room_data), "container": HOSTNAME}
             await websocket.send_json(response)
 
             while True:
